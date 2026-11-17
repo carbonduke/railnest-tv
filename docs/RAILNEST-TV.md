@@ -1,6 +1,6 @@
 # Railnest TV
 
-Railnest TV is a standalone Android TV home app based on Aerial's app catalog and wallpaper engine. An installed preview can be updated in place when the APK uses the same application ID and signing key. The Aerial project history and license retain their original attribution.
+Railnest TV is a standalone Android TV home app based on Aerial's app catalog and wallpaper engine. The application ID is `com.carbonduke.railnesttv`. Android installs it separately from the early preview, with its own settings and wallpapers. The Aerial project history and license retain their original attribution.
 
 Press Left from the first card in any row, or press Menu, to open the left navigation drawer. It has five destinations: Search, Home, Network settings, Desktop settings, and System settings. Press Right or Back to return to the apps.
 

@@ -15,7 +15,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "app.orchard.tv.googletv"
+        applicationId = "com.carbonduke.railnesttv"
+        resValue("string", "revival_account_type", requireNotNull(applicationId))
         minSdk = 26
         targetSdk = 34
         versionCode = 148

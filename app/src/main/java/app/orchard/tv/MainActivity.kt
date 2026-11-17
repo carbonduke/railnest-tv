@@ -439,7 +439,7 @@ class MainActivity : ComponentActivity() {
     /** [again]: the target was opened and then covered at once (Home Guard's EXTRA_REOPEN_BOOT). */
     private fun openBootSource(reason: String, again: Boolean = false) {
         val id = AerialSettings.bootSource
-        val pkg = AerialSettings.bootApp.takeUnless { packageName == "app.orchard.tv.googletv" }
+        val pkg = AerialSettings.bootApp.takeUnless { packageName == BuildConfig.APPLICATION_ID }
         if (id == null && pkg == null) return
         // In Kids and Elders mode only what the mode shows.
         if (Restricted.active && (pkg ?: (SOURCE_KEY_PREFIX + id)) !in Restricted.allowed) {
@@ -697,7 +697,7 @@ class MainActivity : ComponentActivity() {
      * starts nothing on the timer, and Back starts the firmware's.
      */
     private fun startScreensaver(asked: Boolean) {
-        if (packageName.endsWith(".googletv")) {
+        if (packageName == BuildConfig.APPLICATION_ID) {
             if (asked && !SystemScreensaver.startFirmware(this)) {
                 Toast.makeText(this, R.string.system_saver_unavailable, Toast.LENGTH_LONG).show()
             }

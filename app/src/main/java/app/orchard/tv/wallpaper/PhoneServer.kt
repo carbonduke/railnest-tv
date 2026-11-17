@@ -1,5 +1,6 @@
 package app.orchard.tv.wallpaper
 
+import app.orchard.tv.BuildConfig
 import app.orchard.tv.R
 import android.content.Context
 import android.graphics.Bitmap
@@ -69,7 +70,7 @@ class PhoneServer private constructor(private val context: Context, private val 
             if (session.method == Method.POST && path != "/api/kids/unlock" && (Restricted.active || path.startsWith("/api/kids/")) &&
                 path != "/api/kids/start" && !pinOk(session.headers["x-aerial-pin"])
             ) return json(state().put("saved", false).put("kidsLocked", true))
-            if (context.packageName.endsWith(".googletv")) return figmaWallpaperPage(session, path)
+            if (context.packageName == BuildConfig.APPLICATION_ID) return figmaWallpaperPage(session, path)
             when {
                 path == "/" -> newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", page())
                 session.method == Method.POST && path == "/api/kids/unlock" -> {
@@ -584,7 +585,8 @@ class PhoneServer private constructor(private val context: Context, private val 
     private fun text(status: Response.Status, msg: String) = newFixedLengthResponse(status, "text/plain; charset=utf-8", msg)
 
     companion object {
-        const val PORT = 8790
+        // The early preview can still be installed and listening on 8790.
+        const val PORT = 8791
         private const val TAG = "AerialPhone"
         /** Enough for a batch of phone photos at full size. */
         private const val MAX_UPLOAD = 200L * 1024 * 1024

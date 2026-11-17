@@ -92,7 +92,7 @@ object Wallpapers {
     private const val FIGMA_PREFIX = "figma:"
     private const val FIGMA_DEFAULT = "figma:landscape-1"
 
-    private val staticDesktop get() = app.packageName.endsWith(".googletv")
+    private val staticDesktop get() = app.packageName == BuildConfig.APPLICATION_ID
     private fun defaultWallpaperId() = if (staticDesktop) FIGMA_DEFAULT else LATEST_DAILY
     const val SOURCE_PREFIX = "source:"
     /** The picture under a TV input's, for the glass and while the input has nothing to show. */

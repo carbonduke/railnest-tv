@@ -40,11 +40,10 @@ object RevivalSync {
         // Accounts live in credential storage.
         if (!GuardSetup.isUserUnlocked(context)) return
         runCatching {
-            // Normally app.orchard.tv; an isolated test build must not share the owner's account.
             val accountType = context.packageName
             val accounts = AccountManager.get(context)
             val account = accounts.getAccountsByType(accountType).firstOrNull()
-                ?: Account("Aerial", accountType).also {
+                ?: Account("Railnest TV", accountType).also {
                     if (!accounts.addAccountExplicitly(it, null, null)) return
                     Log.i(TAG, "added the account that lets the sync framework revive Aerial")
                 }

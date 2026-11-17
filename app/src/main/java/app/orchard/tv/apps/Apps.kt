@@ -7,6 +7,7 @@ import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.util.Log
+import app.orchard.tv.BuildConfig
 import app.orchard.tv.R
 import app.orchard.tv.guard.HomeGuardService
 import app.orchard.tv.system.CoocaaHome
@@ -294,9 +295,9 @@ object AppCatalog {
             .sortedBy {
                 preferredHomes.indexOf(it.packageName).let { i -> if (i == -1) Int.MAX_VALUE else i }
             }
-        // Figma provides Home and system settings in its navigation drawer.
-        val figma = context.packageName == "app.orchard.tv.googletv"
-        if (figma) {
+        // Railnest TV provides Home and system settings in its navigation drawer.
+        val railnest = context.packageName == BuildConfig.APPLICATION_ID
+        if (railnest) {
             stockInfos.filter { it.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0 }
                 .forEach { found.remove(it.packageName) }
         } else {
@@ -315,7 +316,7 @@ object AppCatalog {
         }
         pm.resolveActivity(Intent(android.provider.Settings.ACTION_SETTINGS), 0)
             ?.let { byCategory.putIfAbsent(it.activityInfo.packageName, SystemTile.Settings) }
-        if (figma) found.keys.removeAll { pkg ->
+        if (railnest) found.keys.removeAll { pkg ->
             byCategory[pkg] == SystemTile.Settings || SYSTEM_TILES[pkg] == SystemTile.Settings
         }
 
@@ -336,7 +337,7 @@ object AppCatalog {
                         }
                 }
             }.awaitAll().filterNotNull()
-        }.plus(if (figma) emptyList() else shortcuts(context, pm)).also {
+        }.plus(if (railnest) emptyList() else shortcuts(context, pm)).also {
             val now = android.os.SystemClock.uptimeMillis()
             lastTiming = longArrayOf(started, queried, now)
             loaded = it
