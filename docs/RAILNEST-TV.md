@@ -1,6 +1,6 @@
 # Railnest TV
 
-Railnest TV is a standalone Android TV home app based on Aerial's app catalog and wallpaper engine. It updates the previous local preview in place, using the same application ID and signing key. The Aerial project history and license retain their original attribution.
+Railnest TV is a standalone Android TV home app based on Aerial's app catalog and wallpaper engine. An installed preview can be updated in place when the APK uses the same application ID and signing key. The Aerial project history and license retain their original attribution.
 
 Press Left from the first card in any row, or press Menu, to open the left navigation drawer. It has five destinations: Search, Home, Network settings, Desktop settings, and System settings. Press Right or Back to return to the apps.
 
@@ -15,3 +15,7 @@ Press Back from the first home screen or choose **Desktop settings → Start scr
 Choose **Desktop settings → Set Railnest TV as default Home** to open Android's Home app picker. The row shows whether the system resolves Home to Railnest TV. On the MiTV-AFMU1 tested here, the picker saves the selection, but the firmware still opens Google TV when pressing Home and after reboot. Standby also resumes the open app. You can choose Google TV again in the same picker.
 
 Design reference: [Android TV design guidelines](https://developer.android.com/design/ui/tv).
+
+## Upstream reference
+
+The [Aerial TV source snapshot used by this fork](https://github.com/pengchujin/aerial-tv/tree/b3abf8fb7569f7678c2e60e9afea72539df2b7a1) contains the original website, Lite app, and release tooling. Use the [Railnest TV installation prompt](../prompt.md) for this fork. The technical notes under this directory record upstream firmware observations and should be read in that context.

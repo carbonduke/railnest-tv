@@ -12,6 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Figma TV"
+rootProject.name = "Railnest TV"
 include(":app")
-include(":lite")

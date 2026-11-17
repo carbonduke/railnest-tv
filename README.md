@@ -1,8 +1,10 @@
 # Railnest TV
 
+[English](README.en.md)
+
 Railnest TV 是一款为遥控器设计的开源 Android TV 桌面。打开 Railnest TV 后，可以从自选壁纸和应用入口开始浏览。首页、导航夹和设置采用 [Android TV Material 组件](https://developer.android.com/design/ui/tv)，界面随电视系统语言切换。项目基于 [Aerial TV](https://github.com/pengchujin/aerial-tv)。
 
-[查看 Releases](https://github.com/carbonduke/railnest-tv/releases) · [安装提示词](安装提示词.md) · [操作说明](docs/RAILNEST-TV.md) · [反馈设备兼容性](https://github.com/carbonduke/railnest-tv/issues)
+[查看 Releases](https://github.com/carbonduke/railnest-tv/releases) · [安装提示词](prompt.md) · [操作说明](docs/RAILNEST-TV.md) · [反馈设备兼容性](https://github.com/carbonduke/railnest-tv/issues)
 
 ![Railnest TV 展开的左侧导航夹，背景是壁纸和电视应用](docs/screenshots/navigation-drawer.jpg)
 
@@ -38,7 +40,7 @@ Railnest TV 是一款为遥控器设计的开源 Android TV 桌面。打开 Rail
 3. 安装后，从电视原桌面的应用列表打开 **Railnest TV**。先检查方向键、应用启动、网络和系统设置。
 4. 如希望切换默认桌面，打开「桌面设置 → 将 Railnest TV 设为默认桌面」。在系统选择器中选定后，按实体 Home 键验证。要恢复原桌面，可在同一选择器里重新选回原厂桌面。
 
-如果要让助手指导安装，可复制[通用安装提示词](安装提示词.md)。其中包含设备识别、ABI 检查、安装失败时的判断和默认桌面的恢复步骤。
+如果要让助手指导安装，可复制[通用安装提示词](prompt.md)。其中包含设备识别、ABI 检查、安装失败时的判断和默认桌面的恢复步骤。
 
 ### 遥控器操作
 
