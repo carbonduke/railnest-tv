@@ -62,6 +62,7 @@ sealed interface Overlay {
     data class Folder(val id: String) : Overlay
     data object HiddenApps : Overlay
     data object Wallpaper : Overlay
+    data object Search : Overlay
     data class Pin(val mode: PinMode, val onDone: () -> Unit) : Overlay
     /** Setting up Kids and Elders mode (Restricted), from Personalize. */
     data object Kids : Overlay
@@ -227,6 +228,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      * few seconds in, when Home Guard would have bound if it were on.
      */
     private fun offerSetupOnce() {
+        if (context.packageName.endsWith(".googletv")) return
         val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
         if (prefs.getBoolean("setup_offered", false)) return
         viewModelScope.launch {
@@ -432,9 +434,6 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** An app or folder on Home, or an app inside a folder. */
     fun entry(key: String): AppEntry? = apps.firstOrNull { it.key == key } ?: folderApps.values.flatten().firstOrNull { it.key == key }
-
-    /** The folders on Home, in order, for "Move to Folder". */
-    fun folders() = store.folders()
 
     /**
      * Puts [key] into folder [id], or into a new folder named after what the app is, which takes

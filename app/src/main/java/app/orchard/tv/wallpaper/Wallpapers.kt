@@ -1,5 +1,6 @@
 package app.orchard.tv.wallpaper
 
+import app.orchard.tv.R
 import android.content.Context
 import android.os.Build
 import android.graphics.Bitmap
@@ -88,6 +89,11 @@ object Wallpapers {
     const val LIVE = "aerial:live"
     const val VIDEOS = "videos:mine"
     const val VIDEO_PREFIX = "video:"
+    private const val FIGMA_PREFIX = "figma:"
+    private const val FIGMA_DEFAULT = "figma:landscape-1"
+
+    private val staticDesktop get() = app.packageName.endsWith(".googletv")
+    private fun defaultWallpaperId() = if (staticDesktop) FIGMA_DEFAULT else LATEST_DAILY
     const val SOURCE_PREFIX = "source:"
     /** The picture under a TV input's, for the glass and while the input has nothing to show. */
     private const val SOURCE_PICTURE = "hills_night"
@@ -212,9 +218,13 @@ object Wallpapers {
             else -> ScreensaverMode.of(key)
         }
         rebuildList()
+        if (staticDesktop && !canSelectStatic(selectedId)) {
+            selectedId = FIGMA_DEFAULT
+            prefs.edit { putString("selected", selectedId) }
+        }
         loadBaked()
         rebuildBackdrop()
-        scope.launch { refreshDaily() }
+        if (!staticDesktop) scope.launch { refreshDaily() }
         scope.launch(Dispatchers.IO) { clearStaleUploads() }
         // Installs from before 1.42 have a baked picture but no copy yet.
         scope.launch(Dispatchers.IO) { keepForLockedBoot() }
@@ -257,6 +267,7 @@ object Wallpapers {
     }
 
     fun select(id: String) {
+        if (staticDesktop && !canSelectStatic(id)) return
         selectedId = id
         prefs.edit { putString("selected", id) }
         rebuildBackdrop()
@@ -285,11 +296,14 @@ object Wallpapers {
         GuardSetup.screensaverModeChanged(app)
     }
 
+    fun canSelectStatic(id: String): Boolean =
+        items.any { it.id == id } || (id == ROTATE_PHOTOS && items.count { it.kind == WallpaperKind.Photo } > 1)
+
     /** The concrete wallpaper the selection points at today. */
     fun resolve(id: String = selectedId): Wallpaper? = when (id) {
         LATEST_DAILY -> items.firstOrNull { it.kind == WallpaperKind.Daily }
         ROTATE_PHOTOS -> items.filter { it.kind == WallpaperKind.Photo }.sortedBy { it.id }.let { photos ->
-            if (photos.isEmpty()) resolve(LATEST_DAILY) else photos[Math.floorMod(photoSlot(), photos.size)]
+            if (photos.isEmpty()) resolve(defaultWallpaperId()) else photos[Math.floorMod(photoSlot(), photos.size)]
         }
         // Inputs are listed after Home starts; until then the input is taken on trust.
         else -> items.firstOrNull { it.id == id }
@@ -337,7 +351,11 @@ object Wallpapers {
 
     /** Full picture at [w]×[h] without shading, for the photo screensaver. Call off the main thread. */
     fun picture(wp: Wallpaper, w: Int, h: Int): Bitmap? = when (wp.kind) {
-        WallpaperKind.Builtin -> Gradients.byKey(wp.id.removePrefix("grad:"))?.let { Gradients.render(it, w, h) }
+        WallpaperKind.Builtin -> if (wp.id.startsWith(FIGMA_PREFIX)) {
+            val file = wp.id.removePrefix(FIGMA_PREFIX)
+            runCatching { app.assets.open("figma-wallpapers/$file.jpg").use { BitmapFactory.decodeStream(it) } }
+                .getOrNull()?.let { image -> Images.cover(image, w, h).also { if (it !== image) image.recycle() } }
+        } else Gradients.byKey(wp.id.removePrefix("grad:"))?.let { Gradients.render(it, w, h) }
         WallpaperKind.Daily, WallpaperKind.Photo -> fileFor(wp)?.takeIf { it.exists() }?.let { Images.decodeCover(it, w, h) }
         WallpaperKind.Auto -> null
         // Until a film has stopped on a frame, the first built-in stands in.
@@ -795,6 +813,15 @@ object Wallpapers {
         val photos = (photoDir.listFiles { f -> f.extension == "jpg" } ?: emptyArray())
             .sortedByDescending { it.lastModified() }
             .map { Wallpaper("photo:${it.nameWithoutExtension}", WallpaperKind.Photo, if (zh) "我的照片" else "My Photo") }
+        if (staticDesktop) {
+            items = listOf("landscape" to R.string.figma_landscape_wallpaper, "visual" to R.string.figma_visual_wallpaper)
+                .flatMap { (category, label) ->
+                    (1..5).map { number ->
+                        Wallpaper("$FIGMA_PREFIX$category-$number", WallpaperKind.Builtin, app.getString(label, number))
+                    }
+                } + photos
+            return
+        }
         val auto = Wallpaper(AUTO, WallpaperKind.Auto, if (zh) "跟随 App" else "Follow App")
         val live = Wallpaper(LIVE, WallpaperKind.Live, if (zh) "航拍" else "Aerial")
         // All of them in turn, then each on its own (#762); the pickers show the first only for two or more.
@@ -828,7 +855,7 @@ object Wallpapers {
      * else a few minutes later (issue #129).
      */
     fun refreshDailyIfStale(networkCameUp: Boolean = false) {
-        if (!started) return
+        if (!started || staticDesktop) return
         val since = System.currentTimeMillis() - lastDailyRefresh
         val due = since >= 6 * 60 * 60 * 1000L ||
             (dailyFailed && (networkCameUp || since >= 10 * 60 * 1000L)) ||
@@ -950,7 +977,7 @@ object Wallpapers {
         fileFor(photo)?.delete()
         synchronized(thumbs) { thumbs.remove(id); thumbs.remove(ROTATE_PHOTOS) }
         rebuildList()
-        if (selectedId == id) select(LATEST_DAILY)
+        if (selectedId == id) select(defaultWallpaperId())
         else if (selectedId == ROTATE_PHOTOS) rebuildBackdrop()
     }
 }

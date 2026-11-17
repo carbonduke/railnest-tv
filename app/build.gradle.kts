@@ -15,12 +15,14 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "app.orchard.tv"
-        // Android 5.0. Compose 1.10 and later need 6.0, so the Compose BOM below stays on 1.9.
-        minSdk = 21
+        applicationId = "app.orchard.tv.googletv"
+        minSdk = 26
         targetSdk = 34
-        versionCode = 146
-        versionName = "1.99"
+        versionCode = 148
+        versionName = "0.1"
+        ndk {
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+        }
         // `./gradlew -Pdiag ...`: a build for one reporter's TV whose logcat shows no app lines;
         // see system/DiagLog.kt.
         val diag = project.hasProperty("diag")
@@ -84,6 +86,9 @@ android {
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        unitTests.all { test ->
+            test.systemProperty("robolectric.enabledSdks", (26..36).joinToString(","))
+        }
     }
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "DebugProbesKt.bin", "kotlin-tooling-metadata.json")
@@ -103,6 +108,7 @@ dependencies {
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
     implementation(composeBom)
+    implementation("androidx.tv:tv-material:1.0.1")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.animation:animation")

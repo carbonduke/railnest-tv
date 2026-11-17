@@ -214,9 +214,12 @@ private object Defaults {
         "com.cibn.tv",                     // CIBN 酷喵
         "com.hunantv.license",             // 芒果 TV
         "com.xiaodianshi.tv.yst",          // 云视听小电视
-        "com.netflix.ninja",
         "com.google.android.youtube.tv",
+        "com.netflix.ninja",
         "com.apple.atve.androidtv.appletv",
+        "com.riri.finflow",
+        "com.vidhub.tv",
+        "com.android.vending",
         "com.disney.disneyplus",
         "com.amazon.amazonvideo.livingroom",
         "com.hbo.hbonow",

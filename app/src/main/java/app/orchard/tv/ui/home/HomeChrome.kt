@@ -851,21 +851,14 @@ fun StatusPill(
                 .clip(RoundedCornerShape(50))
                 .drawBehind { drawRect(bg) }
                 .height(34.dp)
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            val glyph = when (network.kind) {
-                NetKind.Wifi -> Glyph.Wifi
-                NetKind.Ethernet -> Glyph.Ethernet
-                NetKind.Offline -> Glyph.Offline
-            }
-            GlyphIcon(glyph, fg, 17.dp, level = network.level)
-            if (network.vpn) VpnBadge(fg)
             if (showTime) {
                 BasicText(timeText(now), style = Type.Headline.copy(color = fg))
             }
-            GlyphIcon(Glyph.Switches, fg, 17.dp)
+            GlyphIcon(Glyph.Gear, fg, 20.dp)
         }
     }
 }

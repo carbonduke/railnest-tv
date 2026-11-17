@@ -1,5 +1,14 @@
 package app.orchard.tv.ui.home
 
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.tv.material3.Button
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.LocalContentColor
+import androidx.tv.material3.Text
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -17,6 +26,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -63,12 +73,11 @@ import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.CustomIcons
 import app.orchard.tv.apps.SourceDevice
 import app.orchard.tv.apps.SourceLooks
-import app.orchard.tv.apps.Folder
 import app.orchard.tv.ui.components.Pressable
 import app.orchard.tv.ui.components.consumeTaps
 import app.orchard.tv.ui.components.dismissOnTap
+import app.orchard.tv.ui.components.isSelect
 import app.orchard.tv.ui.components.liquidGlass
-import app.orchard.tv.settings.AerialSettings
 import app.orchard.tv.ui.components.smoothBackground
 import app.orchard.tv.ui.components.smoothBorder
 import app.orchard.tv.ui.components.smoothCut
@@ -90,7 +99,7 @@ fun <T : Any> rememberLatest(value: T?): T? {
     return holder[0] as T?
 }
 
-/** A row in a glass menu: transparent at rest, the tvOS white plate when focused. */
+/** An action in the app context menu. */
 @Composable
 fun MenuRow(
     glyph: Glyph,
@@ -101,38 +110,43 @@ fun MenuRow(
     destructive: Boolean = false,
     trailing: String? = null,
 ) {
-    Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1.03f, modifier = modifier.fillMaxWidth()) { state ->
-        val bg by animateColorAsState(
-            if (state.focused) Palette.Focus else Color.Transparent, tween(140, easing = Motion.EaseOut), label = "row-bg",
-        )
-        val fg = when {
-            state.focused -> if (destructive) Color(0xFFD70015) else Palette.OnFocus
-            destructive -> Palette.Red
-            else -> Palette.Label
-        }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .smoothBackground({ bg }, 12.dp)
-                .height(44.dp)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+    var selectStartedHere by remember { mutableStateOf(false) }
+    FigmaTheme {
+        Button(
+            onClick = onClick,
+            modifier = modifier.fillMaxWidth()
+                .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .onFocusChanged { if (!it.isFocused) selectStartedHere = false }
+                .onPreviewKeyEvent { event ->
+                    // Opening the menu moves focus while the remote's OK key is still held.
+                    if (!event.isSelect()) return@onPreviewKeyEvent false
+                    when (event.type) {
+                        KeyEventType.KeyDown -> {
+                            if (event.nativeKeyEvent.repeatCount > 0) true
+                            else {
+                                selectStartedHere = true
+                                false
+                            }
+                        }
+                        KeyEventType.KeyUp -> {
+                            val consume = !selectStartedHere
+                            selectStartedHere = false
+                            consume
+                        }
+                        else -> false
+                    }
+                },
         ) {
-            GlyphIcon(glyph, fg, 18.dp)
-            BasicText(text, style = Type.Body.copy(color = fg), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            if (trailing != null) {
-                BasicText(
-                    trailing,
-                    style = Type.Callout.copy(color = if (state.focused) Palette.OnFocus.copy(alpha = 0.6f) else Palette.SecondaryLabel),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp),
-                )
-            }
+            GlyphIcon(glyph, LocalContentColor.current, 20.dp)
+            Spacer(Modifier.width(10.dp))
+            Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                color = if (destructive) MaterialTheme.colorScheme.error else LocalContentColor.current)
+            trailing?.let { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }
 
-private enum class MenuPage { Main, Folders, Rename, Device }
+private enum class MenuPage { Main, Rename, Device }
 
 private val MenuWidth = 250.dp
 
@@ -146,20 +160,14 @@ fun AppMenu(
     anchor: Rect?,
     /** The menu belongs to an app inside a folder. */
     inFolder: Boolean,
-    /** The folders on Home, for Move to Folder. */
-    folders: List<Folder>,
     onMove: (String) -> Unit,
     onHide: (String) -> Unit,
     onInfo: (String) -> Unit,
     onUninstall: (String) -> Unit,
     onUnpin: (String) -> Unit,
     onResetIcon: (String) -> Unit,
-    /** Opens [AppEntry.key] when the TV is switched on, or stops opening it. */
-    onBootTarget: (String) -> Unit,
     /** What is plugged into a pinned input, by its input id; null puts the input's own tile back. */
     onSourceDevice: (String, SourceDevice?) -> Unit,
-    /** Into folder id, or a new folder when null. */
-    onToFolder: (String, String?) -> Unit,
     onOutOfFolder: (String) -> Unit,
     onRenameFolder: (String, String) -> Unit,
     onUngroup: (String) -> Unit,
@@ -173,7 +181,6 @@ fun AppMenu(
     val scroll = rememberScrollState()
     var page by remember(shownApp.key, visible) { mutableStateOf(MenuPage.Main) }
     val folder = shownApp.folder
-    val holder = folders.firstOrNull { shownApp.key in it.apps }
     // A look at the disk (and a hash, for an input): once per app, not on each recomposition of the
     // menu as it grows in.
     val customIcon = remember(shownApp.key, CustomIcons.version) { CustomIcons.has(shownApp.key) }
@@ -188,26 +195,9 @@ fun AppMenu(
     }
 
     Box(
-        Modifier
-            .fillMaxSize()
-            // A tap beside the menu closes it, as Back does.
-            .then(if (visible) Modifier.dismissOnTap(onDismiss) else Modifier)
-            .layout { measurable, constraints ->
-                val margin = 24.dp.roundToPx()
-                val p = measurable.measure(Constraints(
-                    maxWidth = (constraints.maxWidth - margin * 2).coerceAtLeast(0),
-                    maxHeight = (constraints.maxHeight - margin * 2).coerceAtLeast(0),
-                ))
-                val gap = 18.dp.roundToPx()
-                // Submenus have different heights; place the measured menu inside the canvas (#1097).
-                val below = shownAnchor.bottom + gap + p.height <= constraints.maxHeight - margin
-                val y = (if (below) shownAnchor.bottom + gap else shownAnchor.top - gap - p.height)
-                    .roundToInt().coerceIn(margin, (constraints.maxHeight - margin - p.height).coerceAtLeast(margin))
-                val x = shownAnchor.left.roundToInt()
-                    .coerceIn(margin, (constraints.maxWidth - margin - p.width).coerceAtLeast(margin))
-                origin = TransformOrigin(((shownAnchor.center.x - x) / p.width.coerceAtLeast(1)).coerceIn(0f, 1f), if (below) 0f else 1f)
-                layout(constraints.maxWidth, constraints.maxHeight) { p.place(x, y) }
-            },
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (visible) .55f else 0f))
+            .then(if (visible) Modifier.dismissOnTap(onDismiss) else Modifier).padding(24.dp),
+        contentAlignment = Alignment.CenterEnd,
     ) {
         AnimatedVisibility(
             visible = visible,
@@ -216,20 +206,21 @@ fun AppMenu(
         ) {
             Column(
                 Modifier
-                    .width(MenuWidth)
+                    .width(320.dp)
+                    .fillMaxHeight()
                     .consumeTaps()
-                    .liquidGlass(20.dp)
+                    .background(Color(0xFF15191E))
                     .verticalScroll(scroll)
-                    .padding(8.dp),
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val title = when (page) {
                     MenuPage.Main -> shownApp.label
-                    MenuPage.Folders -> stringResource(R.string.menu_to_folder)
                     MenuPage.Rename -> stringResource(R.string.menu_rename_folder)
                     MenuPage.Device -> stringResource(R.string.menu_source_device)
                 }
-                BasicText(
-                    title, style = Type.Headline, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                Text(
+                    title, color = Color(0xFFE3E8EF), style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp),
                 )
                 when (page) {
@@ -243,7 +234,6 @@ fun AppMenu(
                             // In a folder too: its apps keep an order of their own (issue #1344).
                             MenuRow(Glyph.Move, stringResource(R.string.menu_move), { onMove(shownApp.key) }, focusRequester = first)
                             if (inFolder) MenuRow(Glyph.Folder, stringResource(R.string.menu_out_of_folder), { onOutOfFolder(shownApp.key) })
-                            MenuRow(Glyph.Folder, stringResource(R.string.menu_to_folder), { page = MenuPage.Folders }, trailing = "›")
                             if (shownApp.source != null) {
                                 // A pinned TV input: no app info or uninstall, and "remove" unpins it.
                                 MenuRow(Glyph.Input, stringResource(R.string.menu_source_device), { page = MenuPage.Device }, trailing = "›")
@@ -259,23 +249,9 @@ fun AppMenu(
                                 }
                                 if (shownApp.shortcut == null) MenuRow(Glyph.Info, stringResource(R.string.menu_info), { onInfo(shownApp.key) })
                             }
-                            // What the TV starts on, for homes that switch it on to watch television.
-                            val boots = shownApp.source?.let { it.id == AerialSettings.bootSource } ?: (shownApp.key == AerialSettings.bootApp)
-                            MenuRow(
-                                if (boots) Glyph.Check else Glyph.Power,
-                                stringResource(if (boots) R.string.menu_boot_off else R.string.menu_boot_on),
-                                { onBootTarget(shownApp.key) },
-                            )
                             if (shownApp.removable) {
                                 MenuRow(Glyph.Trash, stringResource(R.string.menu_uninstall), { onUninstall(shownApp.key) }, destructive = true)
                             }
-                        }
-                    }
-                    MenuPage.Folders -> {
-                        MenuRow(Glyph.Folder, stringResource(R.string.menu_new_folder), { onToFolder(shownApp.key, null) }, focusRequester = first)
-                        // The folder the app is already in is not offered.
-                        folders.filter { it.id != holder?.id }.forEach { f ->
-                            MenuRow(Glyph.Folder, f.name, { onToFolder(shownApp.key, f.id) })
                         }
                     }
                     MenuPage.Device -> {
@@ -354,65 +330,21 @@ fun HiddenAppsSheet(
     onUnhide: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    if (!visible) return
     val first = remember { FocusRequester() }
-    BackHandler(enabled = visible, onBack = onDismiss)
-    LaunchedEffect(visible, apps.size) {
-        if (visible) {
-            withFrameNanos { }
-            runCatching { first.requestFocus() }
-        }
-    }
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(200, easing = Motion.EaseOut)) + scaleIn(tween(300, easing = Motion.Drawer), initialScale = 0.94f),
-        exit = fadeOut(tween(150, easing = Motion.EaseOut)) + scaleOut(tween(150, easing = Motion.EaseOut), targetScale = 0.97f),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        Box(Modifier.fillMaxSize().dismissOnTap(onDismiss).background(Color.Black.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
-            Column(
-                Modifier
-                    .width(660.dp)
-                    .consumeTaps()
-                    // The canvas is 540 dp tall: past three rows the grid scrolls inside the sheet.
-                    .heightIn(max = 480.dp)
-                    .liquidGlass(28.dp)
-                    .padding(28.dp),
-            ) {
-                BasicText(stringResource(R.string.hidden_title), style = Type.LargeTitle)
-                BasicText(
-                    stringResource(if (apps.isEmpty()) R.string.hidden_empty else R.string.hidden_hint),
-                    style = Type.Callout, modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
-                )
-                // Focus moving to a row out of view scrolls it in (Compose brings focused items into view).
-                Column(
-                    Modifier
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState())
-                        // Room for the focused tile's 1.1x scale, so the edge rows are not clipped.
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                ) {
-                apps.chunked(4).forEachIndexed { r, row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(bottom = 18.dp)) {
-                        row.forEachIndexed { c, app ->
-                            Pressable(
-                                onClick = { onUnhide(app.key) },
-                                focusRequester = if (r == 0 && c == 0) first else null,
-                                focusedScale = 1.1f,
-                            ) { state ->
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    MiniTile(app, state.focused, Modifier.size(132.dp, 74.dp))
-                                    Spacer(Modifier.height(8.dp))
-                                    BasicText(
-                                        app.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                        style = Type.Caption.copy(color = if (state.focused) Palette.Label else Palette.SecondaryLabel),
-                                        modifier = Modifier.width(132.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                }
+    BackHandler(onBack = onDismiss)
+    LaunchedEffect(apps.size) { first.requestFocus() }
+    FigmaTheme {
+        Column(
+            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)
+                .verticalScroll(rememberScrollState()).padding(horizontal = 56.dp, vertical = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.hidden_title), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineLarge)
+            Text(stringResource(if (apps.isEmpty()) R.string.hidden_empty else R.string.hidden_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onDismiss, modifier = Modifier.focusRequester(first)) { Text(stringResource(R.string.menu_back)) }
+            apps.forEach { app ->
+                Button(onClick = { onUnhide(app.key) }) { Text(app.label) }
             }
         }
     }
@@ -434,13 +366,13 @@ fun NoticeBanner(text: String?, modifier: Modifier = Modifier, glyph: Glyph = Gl
         Row(
             Modifier
                 .widthIn(max = 640.dp)
-                .liquidGlass(22.dp)
+                .background(Color(0xFF29313A), RoundedCornerShape(16.dp))
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             GlyphIcon(glyph, Palette.Label, 16.dp)
-            BasicText(shown, style = Type.Callout.copy(color = Palette.Label), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(shown, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFE3E8EF), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

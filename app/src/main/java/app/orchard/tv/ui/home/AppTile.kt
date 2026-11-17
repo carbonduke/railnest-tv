@@ -110,7 +110,7 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 
 // D-pad remotes give no tilt to follow, so the lift itself has to read from across the room.
-private const val FOCUSED_SCALE = 1.15f
+private const val FOCUSED_SCALE = 1.08f
 private const val PRESSED_SCALE = 1.05f
 
 /**
@@ -129,10 +129,10 @@ private val Corner = 12.dp
 private const val RIM_AT_REST = 0.07f
 
 // High-contrast focus frame: a white ring this far outside the tile, as tvOS draws it.
-private val RingGap = 5.dp
+private val RingGap = 0.dp
 private val ShadowBlur = 14.dp
 private val ShadowDrop = 12.dp
-private val RingWidth = 3.dp
+private val RingWidth = 2.dp
 
 /**
  * One app on the home screen, drawn the tvOS way: it lifts toward you when focused, a soft light

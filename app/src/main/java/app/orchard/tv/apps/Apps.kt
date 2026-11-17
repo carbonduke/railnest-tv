@@ -138,6 +138,9 @@ object AppCatalog {
      * the maker's own launcher shows. Each entry names the TV it was found on.
      */
     private val UNLISTED_ENTRIES = listOf(
+        // Google TV hides Play Store from its own apps-only grid. Its exported TV entry is present
+        // on MiTV-AFMU1 (Android 14); offer it as a normal tile on this independent launcher.
+        ComponentName("com.android.vending", "com.google.android.finsky.tvmainactivity.TvMainActivity"),
         // Xiaomi MiTV-MFTR0
         ComponentName("com.xiaomi.mitv.mediaexplorer", "com.xiaomi.mitv.mediaexplorer.NewScraperMainEntryActivity"), // 高清播放器
         ComponentName("com.xiaomi.smarthome.tv", "com.xiaomi.smarthome.tv.ui.MainActivity"), // 米家
@@ -291,9 +294,16 @@ object AppCatalog {
             .sortedBy {
                 preferredHomes.indexOf(it.packageName).let { i -> if (i == -1) Int.MAX_VALUE else i }
             }
-        for (info in stockInfos) {
-            if (skyworthHomes && stockHomes.isNotEmpty()) continue
-            if (found.putIfAbsent(info.packageName, info to false) == null) stockHomes += info.packageName
+        // Figma provides Home and system settings in its navigation drawer.
+        val figma = context.packageName == "app.orchard.tv.googletv"
+        if (figma) {
+            stockInfos.filter { it.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0 }
+                .forEach { found.remove(it.packageName) }
+        } else {
+            for (info in stockInfos) {
+                if (skyworthHomes && stockHomes.isNotEmpty()) continue
+                if (found.putIfAbsent(info.packageName, info to false) == null) stockHomes += info.packageName
+            }
         }
         if (skyworthHomes) found.remove("com.example.android.home")
         found.remove(context.packageName)
@@ -305,6 +315,9 @@ object AppCatalog {
         }
         pm.resolveActivity(Intent(android.provider.Settings.ACTION_SETTINGS), 0)
             ?.let { byCategory.putIfAbsent(it.activityInfo.packageName, SystemTile.Settings) }
+        if (figma) found.keys.removeAll { pkg ->
+            byCategory[pkg] == SystemTile.Settings || SYSTEM_TILES[pkg] == SystemTile.Settings
+        }
 
         val queried = android.os.SystemClock.uptimeMillis()
         val whole = first?.invoke(found.keys)?.takeIf { it.isNotEmpty() }
@@ -323,7 +336,7 @@ object AppCatalog {
                         }
                 }
             }.awaitAll().filterNotNull()
-        }.plus(shortcuts(context, pm)).also {
+        }.plus(if (figma) emptyList() else shortcuts(context, pm)).also {
             val now = android.os.SystemClock.uptimeMillis()
             lastTiming = longArrayOf(started, queried, now)
             loaded = it
@@ -439,8 +452,8 @@ object AppCatalog {
 
     /** The tile drawn from the app's own art: its recipe's glyph, its banner, or its icon. */
     private fun fromApp(pm: PackageManager, info: ActivityInfo, banner: android.graphics.drawable.Drawable?, recipe: TileRecipe?): TileArt = when {
+        banner != null -> TileArtFactory.fromBanner(banner)
         recipe?.glyph != null -> TileArtFactory.glyphTile(recipe.top ?: 0, recipe.bottom ?: 0, recipe.glyph)
-        banner != null && recipe?.useIcon != true -> TileArtFactory.fromBanner(banner)
         else -> TileArtFactory.fromIcon(densest(pm, info, info.iconResource) ?: info.loadIcon(pm), recipe)
     }
 
@@ -463,7 +476,7 @@ object AppCatalog {
         val pkg = info.packageName
         // A picture chosen on the phone page changes the tile as much as an update does.
         // Drawn as the stock launcher or not is part of it too: the same package can be either.
-        val stamp = runCatching { pm.getPackageInfo(pkg, 0).lastUpdateTime }.getOrDefault(0L) + CustomIcons.stamp(pkg) +
+        val stamp = runCatching { pm.getPackageInfo(pkg, 0).lastUpdateTime }.getOrDefault(0L) + 1_000_000L + CustomIcons.stamp(pkg) +
             IconLibrary.stamp(pkg) + if (stockHome) 1 else 0
         val system = (info.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
         val ownTile = if (stockHome) SystemTile.Home else if (system) SYSTEM_TILES[pkg] ?: byCategory[pkg] else null
@@ -501,6 +514,7 @@ object AppCatalog {
             art = runCatching {
                 when {
                     custom != null -> TileArtFactory.fromBanner(android.graphics.drawable.BitmapDrawable(android.content.res.Resources.getSystem(), custom))
+                    banner != null -> TileArtFactory.fromBanner(banner)
                     library != null -> TileArtFactory.fromBanner(android.graphics.drawable.BitmapDrawable(android.content.res.Resources.getSystem(), library))
                     own != null -> TileArtFactory.forSystem(own)
                     else -> fromApp(pm, info, banner, recipe)

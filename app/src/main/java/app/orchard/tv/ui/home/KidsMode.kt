@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -112,7 +113,7 @@ fun KidsSetupSheet(visible: Boolean, candidates: List<AppEntry>, onStart: () -> 
                     .width(912.dp)
                     .height(500.dp)
                     .consumeTaps()
-                    .liquidGlass(28.dp)
+                    .background(Color(0xFF15191E), RoundedCornerShape(24.dp))
                     .padding(start = 28.dp, end = 20.dp, top = 24.dp, bottom = 16.dp),
             ) {
                 SetupSettings(candidates.isNotEmpty(), onStart, Modifier.width(480.dp).fillMaxHeight())
@@ -247,16 +248,16 @@ private fun SmallChip(label: String, on: Boolean, focusRequester: FocusRequester
 
 @Composable
 private fun WideButton(label: String, glyph: Glyph?, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
-    Pressable(onClick = onClick, focusRequester = focusRequester, focusedScale = 1.05f) { state ->
-        val bg by animateColorAsState(if (state.focused) Palette.Focus else Palette.FillStrong, tween(140, easing = Motion.EaseOut), label = "kids-button")
-        val fg = if (state.focused) Palette.OnFocus else Palette.Label
-        Row(
-            Modifier.smoothBackground({ bg }, 14.dp).height(48.dp).padding(horizontal = 22.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+    FigmaTheme {
+        androidx.tv.material3.Button(
+            onClick = onClick,
+            modifier = focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier,
         ) {
-            if (glyph != null) GlyphIcon(glyph, fg, 18.dp)
-            BasicText(label, style = Type.Headline.copy(color = fg), maxLines = 1)
+            if (glyph != null) {
+                GlyphIcon(glyph, androidx.tv.material3.LocalContentColor.current, 20.dp)
+                Spacer(Modifier.width(10.dp))
+            }
+            androidx.tv.material3.Text(label, maxLines = 1)
         }
     }
 }

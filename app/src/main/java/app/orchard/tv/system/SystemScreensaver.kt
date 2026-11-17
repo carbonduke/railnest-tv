@@ -17,6 +17,29 @@ object SystemScreensaver {
     private const val COMPONENTS = "screensaver_components"
     private const val DEFAULT_COMPONENT = "screensaver_default_component"
 
+    private const val GOOGLE_AMBIENT = "com.google.android.apps.tv.dreamx"
+    private const val TV_SETTINGS = "com.android.tv.settings"
+    private const val START_AMBIENT = "com.google.android.pano.action.SLEEP"
+    private const val AMBIENT_SETTINGS = "dreamx.two.panel.SETTINGS"
+
+    private fun exportedIntent(context: Context, intent: Intent): Intent? {
+        val info = runCatching { context.packageManager.resolveActivity(intent, 0)?.activityInfo }.getOrNull() ?: return null
+        if (!info.exported || (info.permission != null && context.checkCallingOrSelfPermission(info.permission) != android.content.pm.PackageManager.PERMISSION_GRANTED)) return null
+        return intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    /** Prefer DreamX’s actual screensaver settings when Google TV exposes the dedicated panel. */
+    fun settingsIntent(context: Context): Intent? =
+        exportedIntent(context, Intent(AMBIENT_SETTINGS).setPackage(GOOGLE_AMBIENT))
+            ?: exportedIntent(context, Intent(Settings.ACTION_DREAM_SETTINGS))
+
+    private fun startGoogleAmbient(context: Context): Boolean {
+        if (!dreamsOn(context) || settingsIntent(context)?.`package` != GOOGLE_AMBIENT || isAerials(context)) return false
+        val intent = exportedIntent(context, Intent(START_AMBIENT).setPackage(TV_SETTINGS)) ?: return false
+        return runCatching { context.startActivity(intent) }
+            .onFailure { Log.w(TAG, "could not start Google TV ambient mode", it) }.isSuccess
+    }
+
     /** Xiaomi's screensaver, which HyperOS starts by its own timer (screen_saver_timeout), not as a dream. */
     const val XIAOMI = "com.xiaomi.mitv.hyper.screensaver"
 
@@ -106,6 +129,7 @@ object SystemScreensaver {
      * is installed, else the dream. False where neither can be started.
      */
     fun startFirmware(context: Context): Boolean {
+        if (startGoogleAmbient(context)) return true
         val pm = context.packageManager
         val xiaomi = runCatching { pm.getPackageInfo(XIAOMI, 0) }.isSuccess
         if (xiaomi) {

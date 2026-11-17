@@ -112,7 +112,7 @@ object AerialSettings {
      * Only the top row on Home, low on the screen, so the wallpaper (a family photo) shows above it,
      * as tvOS does under a full-screen top shelf. The rest of the grid is one press down.
      */
-    var oneRowHome by mutableStateOf(true); private set
+    var oneRowHome by mutableStateOf(false); private set
 
     /**
      * Apps a row on Home: [HOME_COLUMNS], five by default as Aerial always had, six as tvOS 26 lays
@@ -148,10 +148,10 @@ object AerialSettings {
     var homeLocked by mutableStateOf(false); private set
 
     /** The Liquid Glass plate under the top row; some prefer the apps straight on the wallpaper (#151). */
-    var homePlate by mutableStateOf(true); private set
+    var homePlate by mutableStateOf(false); private set
 
     /** The clock, with the date and weather, in the top right instead of the top left. */
-    var clockRight by mutableStateOf(false); private set
+    var clockRight by mutableStateOf(true); private set
 
     /** The date and weather over a big clock above the top row, instead of one small line in the corner. */
     var largeClock by mutableStateOf(false); private set
@@ -173,7 +173,7 @@ object AerialSettings {
     var wallpaperAlwaysMoves by mutableStateOf(false); private set
 
     /** The weather beside the clock; off for those who want the time alone (issue #472). */
-    var showWeather by mutableStateOf(true); private set
+    var showWeather by mutableStateOf(false); private set
 
     /**
      * The time over Aerial's aerial and photo screensavers (issue #240: TCL's firmware puts its own
@@ -246,18 +246,18 @@ object AerialSettings {
         pinHash = prefs.getString("pin_hash", null)
         pinSet = pinHash != null
         pinArrows = prefs.getBoolean("pin_arrows", false)
-        oneRowHome = prefs.getBoolean("one_row_home", true)
+        oneRowHome = prefs.getBoolean("one_row_home", false)
         peekNextRow = prefs.getBoolean("peek_next_row", true)
         chosenColumns = prefs.getInt("home_columns", DEFAULT_HOME_COLUMNS).takeIf { it in HOME_COLUMNS } ?: DEFAULT_HOME_COLUMNS
-        clockRight = prefs.getBoolean("clock_right", false)
+        clockRight = prefs.getBoolean("clock_right", true)
         largeClock = prefs.getBoolean("large_clock", false)
         clockHours = ClockHours.of(prefs.getString("clock_hours", null))
         homeLocked = prefs.getBoolean("home_locked", false)
         photoMinutes = prefs.getInt("photo_minutes", DAY_MINUTES).takeIf { it in PHOTO_MINUTES } ?: DAY_MINUTES
-        homePlate = prefs.getBoolean("home_plate", true)
+        homePlate = prefs.getBoolean("home_plate", false)
         chosenAllNames = prefs.getBoolean("show_all_names", false)
         wallpaperAlwaysMoves = prefs.getBoolean("wallpaper_always_moves", false)
-        showWeather = prefs.getBoolean("show_weather", true)
+        showWeather = prefs.getBoolean("show_weather", false)
         screensaverClock = prefs.getBoolean("screensaver_clock", true)
         // Before 1.28 this was on or off; on meant whichever sounds Aerial played.
         uiSounds = UiSounds.of(prefs.getString("ui_sounds_kind", null)) ?: when {

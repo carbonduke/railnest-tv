@@ -49,19 +49,12 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.foundation.Image
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import app.orchard.tv.ui.components.smoothBackground
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
@@ -86,7 +79,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.orchard.tv.CcPage
-import app.orchard.tv.BuildConfig
 import app.orchard.tv.HomeViewModel
 import app.orchard.tv.Overlay
 import app.orchard.tv.R
@@ -119,7 +111,6 @@ import app.orchard.tv.ui.theme.Type
 import app.orchard.tv.update.ReleaseNotes
 import app.orchard.tv.update.SelfCompile
 import app.orchard.tv.update.Updates
-import app.orchard.tv.wallpaper.PhoneServer
 import java.time.LocalDateTime
 
 /**
@@ -423,18 +414,11 @@ private fun MainPage(
             Box(Modifier.size(7.dp).clip(CircleShape).background(dot))
             Spacer(Modifier.width(8.dp))
             BasicText(text, style = Type.Caption, modifier = Modifier.weight(1f))
-            BasicText("Aerial ${Updates.current}", style = Type.Caption.copy(color = Palette.TertiaryLabel), modifier = Modifier.padding(end = 14.dp))
+            BasicText(stringResource(R.string.cc_update_title, Updates.current), style = Type.Caption.copy(color = Palette.TertiaryLabel), modifier = Modifier.padding(end = 14.dp))
         }
     }
 }
 
-/**
- * How to move to the new version: "Download and Install" fetches the APK and opens the system
- * installer (Updates.install). For TVs whose firmware lets no app install another (see
- * Updates.Failure), and for copies older than the button, a QR code opens the website's update
- * page on a phone, with the install command for this TV to copy: typing it off the screen was
- * too much. The TV's address rides in the fragment, which the browser does not send.
- */
 @Composable
 private fun UpdatePage(vm: HomeViewModel, takeFocus: Boolean) {
     val context = LocalContext.current
@@ -446,12 +430,6 @@ private fun UpdatePage(vm: HomeViewModel, takeFocus: Boolean) {
     }
     DisposableEffect(Unit) { onDispose { Updates.resetInstall() } }
     val canInstall = remember { Updates.canInstall(context) }
-    var qr by remember { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(Unit) {
-        val ip = PhoneServer.lanAddress(context)
-        val url = "https://aerial.qust.me/update/#v=${Updates.current}&f=${BuildConfig.FLAVOR}" + (ip?.let { "&tv=$it" } ?: "")
-        qr = withContext(Dispatchers.Default) { PhoneServer.qr(url).asImageBitmap() }
-    }
     Column {
         MenuRow(
             Glyph.ChevronLeft, stringResource(R.string.cc_update_title, Updates.available ?: Updates.current),
@@ -496,28 +474,14 @@ private fun UpdatePage(vm: HomeViewModel, takeFocus: Boolean) {
             Spacer(Modifier.height(10.dp))
             UpdateNotes(notes)
         }
-        Column(Modifier.padding(horizontal = 14.dp)) {
-            Spacer(Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(104.dp).smoothBackground(Color.White, 12.dp).padding(8.dp)) {
-                    qr?.let { Image(it, contentDescription = null, contentScale = ContentScale.Fit, filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize()) }
-                }
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.weight(1f)) {
-                    BasicText(stringResource(if (canInstall) R.string.cc_update_scan_else else R.string.cc_update_scan), style = Type.Body)
-                    Spacer(Modifier.height(6.dp))
-                    BasicText(stringResource(R.string.cc_update_keeps), style = Type.Caption)
-                }
-            }
-        }
+
     }
 }
 
 /**
  * What the update brings, release by release. The lines are not controls: focused (Down from the
  * install button), Up and Down scroll it a few lines at a time, and past either end focus moves on
- * as from any row. The panel has room for about ten lines under the install button and above the
- * QR code; a bar on the right shows how much more there is.
+ * as from any row. A bar on the right shows how much more there is.
  */
 @Composable
 private fun UpdateNotes(notes: List<ReleaseNotes>) {
@@ -580,12 +544,6 @@ private fun UpdateNotes(notes: List<ReleaseNotes>) {
     }
 }
 
-/**
- * For a TV where Aerial was installed from the APK alone (a USB stick, an app store): it opens, but
- * Home, power-on and wake still go to the stock launcher (issue #213). The settings pages that can
- * fix that on the TV itself, where the TV has them, and a QR code to the website's page with this
- * TV's install command, which does all of it.
- */
 @Composable
 private fun SetupPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.content.Intent) -> Unit) {
     val context = LocalContext.current
@@ -598,29 +556,13 @@ private fun SetupPage(vm: HomeViewModel, takeFocus: Boolean, onOpen: (android.co
     val guard = remember { SystemProbe.guardSettingsIntent(context) }
     val home = remember { SystemProbe.homeSettingsIntent(context) }
     val revival = remember { SystemProbe.revivalSettingsIntent(context) }
-    var qr by remember { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(Unit) {
-        val ip = PhoneServer.lanAddress(context)
-        val url = "https://aerial.qust.me/update/#setup=1&v=${Updates.current}&f=${BuildConfig.FLAVOR}" + (ip?.let { "&tv=$it" } ?: "")
-        qr = withContext(Dispatchers.Default) { PhoneServer.qr(url).asImageBitmap() }
-    }
     Column {
         MenuRow(Glyph.ChevronLeft, stringResource(R.string.cc_setup_title), focusRequester = first, onClick = { vm.overlay = Overlay.ControlCenter(CcPage.Main) })
         BasicText(stringResource(R.string.cc_setup_body), style = Type.Caption, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
         guard?.let { MenuRow(Glyph.Shield, stringResource(R.string.cc_setup_guard), onClick = { vm.whenUnlocked { onOpen(it) } }, trailing = stringResource(R.string.cc_setup_guard_where) + " ›") }
         home?.let { MenuRow(Glyph.Check, stringResource(R.string.cc_setup_home), onClick = { vm.whenUnlocked { onOpen(it) } }, trailing = "›") }
         revival?.let { MenuRow(Glyph.Moon, stringResource(R.string.cc_setup_revival), onClick = { vm.whenUnlocked { onOpen(it) } }, trailing = stringResource(R.string.cc_setup_revival_where) + " ›") }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp)) {
-            Box(Modifier.size(104.dp).smoothBackground(Color.White, 12.dp).padding(8.dp)) {
-                qr?.let { Image(it, contentDescription = null, contentScale = ContentScale.Fit, filterQuality = FilterQuality.None, modifier = Modifier.fillMaxSize()) }
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                BasicText(stringResource(R.string.cc_setup_scan), style = Type.Body)
-                Spacer(Modifier.height(6.dp))
-                BasicText(stringResource(R.string.cc_setup_scan_hint), style = Type.Caption)
-            }
-        }
+
     }
 }
 

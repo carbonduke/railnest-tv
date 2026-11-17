@@ -9,6 +9,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,111 +63,10 @@ import kotlin.math.roundToInt
  * over a film without frames (Wallpapers.filmGlassless) is then see-through like the plate.
  */
 fun Modifier.liquidGlass(corner: Dp, bottomCorners: Boolean = true, seeThroughFilm: Boolean = false): Modifier = composed {
-    // The glass a panel opened with stays while it is open, unless the wallpaper itself changes
-    // (chosen in Personalize). A moving film that stops as a panel opens gets its glass made again
-    // twice within the next second or so, from a frame near where it stopped and then from that
-    // very frame (LiveWallpaper): followed, the menu's and Control Center's glass changed twice
-    // just after they opened (the owner, Xiaomi MiTV-MFTR0). The next opening takes the newest.
-    // Over a moving wallpaper whose frames cannot be had (Wallpapers.filmGlassless) one solid
-    // colour: the frosted frame there is one from minutes before, and Control Center and
-    // Personalize showed its colours over the paused film, another shot (TCL MT5879, 2026-10-30).
-    // See-through instead would show the tiles under the panel; Control Center over the top row,
-    // with only the film under it, is see-through as the plate is: solid, it was a grey slab beside
-    // a plate the film shows through (seen on Xiaomi MiTV-MFFU1 while a slow copy kept it from
-    // the film's frames, 2026-11-01; TCL MT5879 is such a TV for good).
-    // Now the picture's glass, as over a still picture, once the picture is there: the frame
-    // decoded in the app where the film was let go, which the film goes on from (owner, TCL
-    // MT5879, issue #1238). Solid only until a picture exists.
-    val solid = Wallpapers.moves() && Wallpapers.filmGlassless && Wallpapers.frosted == null
-    // Where the film's frames cannot be had otherwise, the latest glass of the moving film, decoded
-    // in the app (Wallpapers.filmFrost), over the picture's, which may be another shot.
-    val latest = (if (Wallpapers.moves() && Wallpapers.filmGlassless) Wallpapers.filmFrost ?: Wallpapers.frosted else Wallpapers.frosted)
-        .takeIf { Wallpapers.backdrop != null }
-    val held = remember(Wallpapers.selectedId, latest == null) { latest }
-    val (frost, under, swap) = rememberFrostSwap(held)
-    var at by remember { mutableStateOf(Offset.Zero) }
-    var root by remember { mutableStateOf(IntSize.Zero) }
     val shape = if (bottomCorners) RoundedCornerShape(corner) else RoundedCornerShape(topStart = corner, topEnd = corner)
-    this
-        .onGloballyPositioned { c ->
-            at = c.positionInRoot()
-            var r = c
-            while (true) r = r.parentLayoutCoordinates ?: break
-            root = r.size
-        }
-        .clip(shape)
-        .drawWithCache {
-            val shader = frost?.let { BitmapShader(it.asAndroidBitmap(), Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
-            val underShader = under?.let { BitmapShader(it.asAndroidBitmap(), Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
-            val radius = corner.toPx()
-            val w = size.width.roundToInt().coerceAtLeast(1)
-            val h = size.height.roundToInt().coerceAtLeast(1)
-            val mask = smoothMask(w, h, radius, if (bottomCorners) radius else 0f)
-            val brush = shader?.let { ShaderBrush(it) }
-            val flat = mask.asImageBitmap()
-            // The glass in a layer the GPU keeps: drawn again only when it moves or its picture
-            // fades, not with every frame of what lies on it. Drawn each frame, the Personalize
-            // sheet cost MiTV-MFTR0's GPU about 29 ms a frame while focus moved along its cards.
-            val glass = obtainGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
-            var drawnAt: Offset? = null
-            var drawnRoot = IntSize.Zero
-            var drawnT = -1f
-            onDrawBehind {
-                if (solid) {
-                    drawImage(flat, dstSize = IntSize(w, h), colorFilter = ColorFilter.tint(if (seeThroughFilm) FilmGlass else FilmPanel))
-                    if (seeThroughFilm) drawImage(filmSheen, dstSize = IntSize(w, h), filterQuality = FilterQuality.Low)
-                    drawGlassEdge(size, radius, bottomCorners)
-                } else if (shader == null || brush == null || root == IntSize.Zero) {
-                    drawImage(flat, dstSize = IntSize(w, h), colorFilter = ColorFilter.tint(Palette.Glass))
-                    drawGlassEdge(size, radius, bottomCorners)
-                } else if (AerialSettings.lite) {
-                    // Lite (AerialSettings.lite): one solid color, the frosted wallpaper's average as
-                    // the glass would dim it, without the layer the glass needs every frame, which
-                    // weak GPUs feel most while a panel slides in. Solid: the plain glass color is
-                    // see-through and showed the tiles under the Personalize sheet.
-                    drawImage(flat, dstSize = IntSize(w, h), colorFilter = ColorFilter.tint(liteGlass(frost)))
-                    drawGlassEdge(size, radius, bottomCorners)
-                } else {
-                    val t = swap()
-                    if (drawnAt != at || drawnRoot != root || drawnT != t) {
-                        drawnAt = at
-                        drawnRoot = root
-                        drawnT = t
-                        fun place(s: BitmapShader, image: ImageBitmap) = s.setLocalMatrix(Matrix().apply {
-                            setScale(root.width.toFloat() / image.width, root.height.toFloat() / image.height)
-                            postTranslate(-at.x, -at.y)
-                        })
-                        place(shader, frost)
-                        // The outline is drawn first in the layer and the glass kept where it lies.
-                        // One shader per draw: a ComposeShader of the glass and the mask (1.27-1.30)
-                        // came out an opaque dark slab on Xiaomi MiTV-ASTP0 (Android 9, Mali-G31),
-                        // and before Android 9 hardware drawing cannot compose two bitmaps.
-                        glass.record(this, layoutDirection, IntSize(w, h)) {
-                            drawImage(flat, dstSize = IntSize(w, h))
-                            if (underShader != null && under != null && t < 1f) {
-                                // A new frosted picture fades in over the old within the outline.
-                                place(underShader, under)
-                                drawRect(ShaderBrush(underShader), colorFilter = PanelTint, blendMode = BlendMode.SrcIn)
-                                drawRect(brush, alpha = t, colorFilter = PanelTint, blendMode = BlendMode.SrcAtop)
-                            } else {
-                                drawRect(brush, colorFilter = PanelTint, blendMode = BlendMode.SrcIn)
-                            }
-                            drawGlassEdge(size, radius, bottomCorners)
-                        }
-                    }
-                    drawLayer(glass)
-                }
-            }
-        }
+    this.clip(shape).background(Color(0xFF1D232C))
 }
 
-/**
- * The frosted wallpaper as glass and backdrops show it: a new one fades in over the last
- * ([FROST_SWAP_MS]) rather than cutting to it. A moving film that stops gives Home its frosted
- * picture in two or three steps (a small frame, then the exact one, LiveWallpaper), and with a
- * panel up each cut was a jump in its glass (Xiaomi MiTV-MFTR0, TCL MT5879). Returns the picture,
- * the one under it while it fades in, and how far it has (0 to 1).
- */
 @Composable
 internal fun rememberFrostSwap(frost: ImageBitmap?): Triple<ImageBitmap?, ImageBitmap?, () -> Float> {
     var shown by remember { mutableStateOf(frost) }

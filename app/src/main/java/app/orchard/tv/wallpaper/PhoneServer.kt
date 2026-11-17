@@ -1,5 +1,6 @@
 package app.orchard.tv.wallpaper
 
+import app.orchard.tv.R
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -59,7 +60,7 @@ class PhoneServer private constructor(private val context: Context, private val 
     override fun serve(session: IHTTPSession): Response {
         val prefix = "/$token"
         val uri = session.uri
-        if (!uri.startsWith(prefix)) return text(Response.Status.NOT_FOUND, "Not found")
+        if (uri != prefix && !uri.startsWith("$prefix/")) return text(Response.Status.NOT_FOUND, "Not found")
         val path = uri.removePrefix(prefix).ifEmpty { "/" }
         return runCatching {
             // In Kids and Elders mode the page changes nothing without the parental PIN: anyone on
@@ -68,6 +69,7 @@ class PhoneServer private constructor(private val context: Context, private val 
             if (session.method == Method.POST && path != "/api/kids/unlock" && (Restricted.active || path.startsWith("/api/kids/")) &&
                 path != "/api/kids/start" && !pinOk(session.headers["x-aerial-pin"])
             ) return json(state().put("saved", false).put("kidsLocked", true))
+            if (context.packageName.endsWith(".googletv")) return figmaWallpaperPage(session, path)
             when {
                 path == "/" -> newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", page())
                 session.method == Method.POST && path == "/api/kids/unlock" -> {
@@ -222,6 +224,38 @@ class PhoneServer private constructor(private val context: Context, private val 
             text(Response.Status.INTERNAL_ERROR, "error")
         }
     }
+
+    private fun figmaWallpaperPage(session: IHTTPSession, path: String): Response = when {
+        session.method == Method.GET && path == "/" ->
+            newFixedLengthResponse(
+                Response.Status.OK, "text/html; charset=utf-8",
+                context.assets.open("web/figma.html").bufferedReader().use { it.readText() },
+            ).apply { addHeader("Cache-Control", "no-store") }
+        session.method == Method.GET && path == "/api/state" -> json(figmaWallpaperState())
+        session.method == Method.GET && path.startsWith("/thumb/") -> thumb(path.removePrefix("/thumb/"))
+        session.method == Method.POST && path == "/api/wallpaper" -> {
+            val id = form(session)["id"].orEmpty()
+            if (!Wallpapers.canSelectStatic(id)) text(Response.Status.BAD_REQUEST, "Unknown wallpaper")
+            else {
+                onMain { Wallpapers.select(id) }
+                json(figmaWallpaperState())
+            }
+        }
+        session.method == Method.POST && path == "/api/upload" -> upload(session, ::figmaWallpaperState)
+        else -> text(Response.Status.NOT_FOUND, "Not found")
+    }
+
+    private fun figmaWallpaperState() = JSONObject()
+        .put("selected", Wallpapers.selectedId)
+        .put("wallpapers", JSONArray().apply {
+            if (Wallpapers.canSelectStatic(Wallpapers.ROTATE_PHOTOS)) {
+                put(JSONObject().put("id", Wallpapers.ROTATE_PHOTOS).put("title", context.getString(R.string.wp_photos_rotate)))
+            }
+            Wallpapers.items.forEach {
+                val title = it.title
+                put(JSONObject().put("id", it.id).put("title", title))
+            }
+        })
 
     private fun page(): String = context.assets.open("web/index.html").bufferedReader().use { it.readText() }
         .replace("{{DEVICE}}", Build.MODEL.replace("_", " "))
@@ -422,7 +456,7 @@ class PhoneServer private constructor(private val context: Context, private val 
         }
     }
 
-    private fun upload(session: IHTTPSession): Response {
+    private fun upload(session: IHTTPSession, stateAfter: () -> JSONObject = ::state): Response {
         if (tooLarge(session)) return text(Response.Status.BAD_REQUEST, "too large")
         val files = HashMap<String, String>()
         session.parseBody(files)
@@ -435,7 +469,7 @@ class PhoneServer private constructor(private val context: Context, private val 
                 if (id != null) added++
             }
         }
-        return json(state().put("added", added))
+        return json(stateAfter().put("added", added))
     }
 
     /**
@@ -443,13 +477,13 @@ class PhoneServer private constructor(private val context: Context, private val 
      * [IHTTPSession.parseBody]: that writes the body to the cache, copies the file part out again and
      * maps the whole body into memory, which a 2 GB film on a 32-bit TV cannot afford (#1164).
      */
-    private fun video(session: IHTTPSession): Response {
+    private fun video(session: IHTTPSession, stateAfter: () -> JSONObject = ::state): Response {
         val length = session.headers["content-length"]?.toLongOrNull() ?: 0L
         val name = session.parameters["name"]?.firstOrNull().orEmpty()
         val saved = ScreensaverVideos.receive(context, session.inputStream, length, name) != null
         if (saved) onMain { Wallpapers.videosChanged() }
         // A refused or broken film leaves unread bytes behind; do not read them as the next request.
-        return json(state().put("saved", saved)).apply { if (!saved) closeConnection(true) }
+        return json(stateAfter().put("saved", saved)).apply { if (!saved) closeConnection(true) }
     }
 
     // NanoHTTPD writes the whole body to the cache before we see it; keep a stray or hostile

@@ -326,8 +326,7 @@ class MainActivity : ComponentActivity() {
                     onOpen = ::open,
                     onAppInfo = { open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", it, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
                     onUninstall = { open(Intent(Intent.ACTION_DELETE, Uri.fromParts("package", it, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
-                    // Posted so the key-up of the Back press that started it does not end it at once.
-                    onStartScreensaver = { idleHandler.postDelayed({ startScreensaver(asked = true) }, 150) },
+                    onStartSystemScreensaver = { idleHandler.postDelayed({ startScreensaver(asked = true) }, 150) },
                 )
             }
         }
@@ -440,7 +439,7 @@ class MainActivity : ComponentActivity() {
     /** [again]: the target was opened and then covered at once (Home Guard's EXTRA_REOPEN_BOOT). */
     private fun openBootSource(reason: String, again: Boolean = false) {
         val id = AerialSettings.bootSource
-        val pkg = AerialSettings.bootApp
+        val pkg = AerialSettings.bootApp.takeUnless { packageName == "app.orchard.tv.googletv" }
         if (id == null && pkg == null) return
         // In Kids and Elders mode only what the mode shows.
         if (Restricted.active && (pkg ?: (SOURCE_KEY_PREFIX + id)) !in Restricted.allowed) {
@@ -698,6 +697,12 @@ class MainActivity : ComponentActivity() {
      * starts nothing on the timer, and Back starts the firmware's.
      */
     private fun startScreensaver(asked: Boolean) {
+        if (packageName.endsWith(".googletv")) {
+            if (asked && !SystemScreensaver.startFirmware(this)) {
+                Toast.makeText(this, R.string.system_saver_unavailable, Toast.LENGTH_LONG).show()
+            }
+            return
+        }
         AerialSettings.relock()
         // A parent who left Kids mode has walked away.
         Restricted.rearm()

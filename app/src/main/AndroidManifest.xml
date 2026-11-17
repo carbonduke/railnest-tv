@@ -74,8 +74,8 @@
          ran out of it drawing Home (issue #328). -->
     <application
         android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:banner="@drawable/banner"
+        android:icon="@mipmap/railnest_tv_icon"
+        android:banner="@drawable/railnest_tv_banner"
         android:theme="@style/Theme.Aerial"
         android:allowBackup="false"
         android:supportsRtl="true"

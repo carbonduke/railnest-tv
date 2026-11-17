@@ -12,6 +12,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Aerial"
+rootProject.name = "Figma TV"
 include(":app")
 include(":lite")

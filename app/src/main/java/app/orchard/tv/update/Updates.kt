@@ -86,6 +86,8 @@ object Updates {
 
     fun init(context: Context) {
         if (started) return
+        // The fork distributes its own APKs. Do not check or download upstream releases.
+        if (context.packageName == "app.orchard.tv.googletv") return
         started = true
         appContext = context.applicationContext
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

@@ -81,6 +81,12 @@ class UpdateSessionTest {
 
     @Test
     fun downloadAndCommitDoNotClaimTheInstallerIsAlreadyVisible() {
+        // This independently signed fork must not install an official Aerial update over itself.
+        if (!Updates.canInstall(app)) {
+            Updates.install(app)
+            assertEquals(Updates.Install.Failed(Updates.Failure.NotOfficial), Updates.install)
+            return
+        }
         shadowOf(app.packageManager).setCanRequestPackageInstalls(true)
         shadowOf(app.packageManager).setPackageArchiveInfo(apk.path, PackageInfo().apply {
             packageName = app.packageName

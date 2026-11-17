@@ -89,7 +89,7 @@ fun FolderView(
         exit = fadeOut(tween(150, easing = Motion.EaseOut)) + scaleOut(tween(150, easing = Motion.EaseOut), targetScale = 0.97f),
         modifier = Modifier.fillMaxSize(),
     ) {
-        Box(Modifier.fillMaxSize().dismissOnTap(onDismiss).background(Color.Black.copy(alpha = 0.45f))) {
+        Box(Modifier.fillMaxSize().dismissOnTap(onDismiss).background(Color(0xFF15191E))) {
             Column(
                 Modifier
                     .fillMaxSize()
@@ -97,14 +97,14 @@ fun FolderView(
                     // Room around the grid for a focused tile's zoom and its name.
                     .padding(start = 56.dp, end = 56.dp, top = 56.dp, bottom = 48.dp),
             ) {
-                BasicText(
-                    shownName, style = Type.LargeTitle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                androidx.tv.material3.Text(
+                    shownName, color = Color(0xFFE3E8EF), style = androidx.tv.material3.MaterialTheme.typography.headlineMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(bottom = 36.dp),
                 )
                 shownApps.chunked(columns).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(bottom = 50.dp)) {
                         row.forEach { app ->
-                            AppTile(
+                            FigmaAppCard(
                                 app = app,
                                 width = tileW,
                                 height = tileH,

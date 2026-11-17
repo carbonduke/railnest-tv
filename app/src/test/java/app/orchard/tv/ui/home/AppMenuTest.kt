@@ -2,6 +2,7 @@ package app.orchard.tv.ui.home
 
 import android.content.ComponentName
 import android.graphics.Bitmap
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.View
 import androidx.activity.ComponentActivity
@@ -19,14 +20,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
-import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import app.orchard.tv.R
 import app.orchard.tv.apps.AppEntry
 import app.orchard.tv.apps.CustomIcons
-import app.orchard.tv.apps.Folder
 import app.orchard.tv.apps.TileArt
 import org.junit.After
 import org.junit.Assert.*
@@ -47,7 +46,7 @@ class AppMenuTest {
     private var host: ActivityController<ComponentActivity>? = null
     private lateinit var view: View
     private var anchor by mutableStateOf(Rect(800f, 130f, 940f, 220f))
-    private var movedTo: String? = null
+    private var movedApp: String? = null
 
     @After fun close() {
         compose.runOnUiThread { host?.close() }
@@ -55,7 +54,7 @@ class AppMenuTest {
 
     private fun text(id: Int) = RuntimeEnvironment.getApplication().getString(id)
 
-    private fun mount(folders: List<Folder> = emptyList()) {
+    private fun mount() {
         val context = RuntimeEnvironment.getApplication()
         CustomIcons.init(context)
         Shadows.shadowOf(context.packageManager).setSystemFeature("android.software.leanback", true)
@@ -72,10 +71,9 @@ class AppMenuTest {
                 val density = LocalDensity.current.density
                 val bounds = Rect(anchor.left * density, anchor.top * density, anchor.right * density, anchor.bottom * density)
                 Box(Modifier.size(960.dp, 540.dp)) {
-                    AppMenu(app, bounds, false, folders,
-                        onMove = {}, onHide = {}, onInfo = {}, onUninstall = {}, onUnpin = {},
-                        onResetIcon = {}, onBootTarget = {}, onSourceDevice = { _, _ -> },
-                        onToFolder = { _, id -> movedTo = id ?: "new" }, onOutOfFolder = {},
+                    AppMenu(app, bounds, false,
+                        onMove = { movedApp = it }, onHide = {}, onInfo = {}, onUninstall = {}, onUnpin = {},
+                        onResetIcon = {}, onSourceDevice = { _, _ -> }, onOutOfFolder = {},
                         onRenameFolder = { _, _ -> }, onUngroup = {}, onDismiss = {})
                 }
             }
@@ -115,25 +113,20 @@ class AppMenuTest {
         }
     }
 
-    @Test fun remoteReachesLastFolderAndReturningResetsScroll() {
-        val folders = List(16) { Folder("folder-$it", "Folder $it", emptyList()) }
-        mount(folders)
-        tap(KeyEvent.KEYCODE_DPAD_DOWN)
-        tap(KeyEvent.KEYCODE_DPAD_CENTER)
-        val menu = compose.onNode(hasScrollAction()).getUnclippedBoundsInRoot()
-        assertTrue("long menu must fit: $menu", menu.top >= 24.dp && menu.bottom <= 516.dp)
-        repeat(folders.size) { tap(KeyEvent.KEYCODE_DPAD_DOWN) }
-        compose.onNodeWithText(folders.last().name).assertIsDisplayed()
-        tap(KeyEvent.KEYCODE_DPAD_CENTER)
-        assertEquals(folders.last().id, movedTo)
-
-        compose.runOnUiThread { host!!.get().onBackPressedDispatcher.onBackPressed() }
+    @Test fun heldSelectDoesNotActivateMoveWhenMenuOpens() {
+        mount()
+        compose.onNodeWithText(text(R.string.menu_to_folder)).assertDoesNotExist()
+        compose.onNodeWithText(text(R.string.menu_boot_on)).assertDoesNotExist()
+        compose.runOnUiThread {
+            val time = SystemClock.uptimeMillis()
+            val key = KeyEvent.KEYCODE_DPAD_CENTER
+            view.dispatchKeyEvent(KeyEvent(time, time, KeyEvent.ACTION_DOWN, key, 2))
+            view.dispatchKeyEvent(KeyEvent(time, time, KeyEvent.ACTION_UP, key, 0))
+        }
         settle()
+        assertNull(movedApp)
         compose.onNodeWithText(text(R.string.menu_move)).assertIsDisplayed()
-        tap(KeyEvent.KEYCODE_DPAD_DOWN)
         tap(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithText(text(R.string.menu_new_folder)).assertIsDisplayed()
-        tap(KeyEvent.KEYCODE_DPAD_CENTER)
-        assertEquals("new", movedTo)
+        assertEquals("test.app", movedApp)
     }
 }

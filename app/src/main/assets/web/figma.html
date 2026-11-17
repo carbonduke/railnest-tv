@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#15191e">
+<title>Railnest TV</title>
+<style>
+:root{color-scheme:dark;--surface:#15191e;--raised:#242a31;--text:#e3e8ef;--muted:#bec7d3;--primary:#b6d6f5;--on-primary:#10283c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface);color:var(--text);font:400 1rem/1.5 Roboto,system-ui,sans-serif}
+main{max-width:58rem;margin:auto;padding:24px}
+h1,h2,p{margin:0 0 12px}h1{font-size:2rem;font-weight:400}h2{font-size:1.375rem;font-weight:500}
+p{color:var(--muted)}
+header{margin-bottom:24px}
+.actions{display:flex;gap:12px;flex-wrap:wrap}
+button{font:500 .9rem/1.3 Roboto,system-ui,sans-serif;cursor:pointer;min-height:48px;border:0}
+.action{border-radius:24px;padding:0 20px;background:var(--primary);color:var(--on-primary)}
+button:disabled{opacity:.5;cursor:default}button:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+#status{min-height:1.5em;margin:12px 0}
+#wallpapers{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:12px}
+.card{background:var(--raised);color:var(--text);border:2px solid transparent;border-radius:16px;text-align:start;overflow:hidden;padding:0}
+.card[aria-pressed=true]{border-color:var(--primary);color:var(--primary)}
+.card img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--surface)}
+.card span{display:block;padding:12px}
+</style>
+<main>
+<header><h1>Railnest TV</h1><p id="intro"></p><div class="actions">
+<button class="action" id="photo"></button><input hidden id="photoPicker" type="file" accept="image/*">
+</div><p id="status" role="status"></p></header>
+<section aria-labelledby="title"><h2 id="title"></h2><div id="wallpapers"></div></section>
+</main>
+<script>
+'use strict';
+const langs={
+  "en": [
+    "Choose a wallpaper or add a photo from this device.",
+    "Add photo",
+    "Wallpapers",
+    "Uploading…",
+    "Wallpaper selected",
+    "Photo applied",
+    "Could not complete the request. Check the TV connection and the file format.",
+    "Current wallpaper"
+  ],
+  "zh": [
+    "选择桌面壁纸，或从此设备上传图片。",
+    "添加图片",
+    "壁纸",
+    "正在上传…",
+    "已设为壁纸",
+    "已应用图片",
+    "操作未完成，请检查电视连接和文件格式。",
+    "当前壁纸"
+  ],
+  "ru": [
+    "Выберите фон или добавьте фото с этого устройства.",
+    "Добавить фото",
+    "Обои",
+    "Загрузка…",
+    "Фон выбран",
+    "Фото применено.",
+    "Проверьте подключение ТВ и формат файла.",
+    "Текущий фон"
+  ],
+  "uk": [
+    "Виберіть фон або додайте фото з цього пристрою.",
+    "Додати фото",
+    "Шпалери",
+    "Завантаження…",
+    "Фон вибрано",
+    "Фото застосовано.",
+    "Перевірте підключення ТВ та формат файлу.",
+    "Поточний фон"
+  ],
+  "kk": [
+    "Осы құрылғыдан тұсқағаз таңдаңыз немесе фото қосыңыз.",
+    "Фото қосу",
+    "Тұсқағаздар",
+    "Жүктелуде…",
+    "Тұсқағаз таңдалды",
+    "Фото қолданылды.",
+    "Теледидар байланысын және файл пішімін тексеріңіз.",
+    "Ағымдағы тұсқағаз"
+  ]
+};
+const lang=navigator.language.split('-')[0], copy=langs[lang]||langs.en;
+document.documentElement.lang=langs[lang]?lang:'en';
+const $=id=>document.getElementById(id);
+['intro','photo','title'].forEach((id,i)=>$(id).textContent=copy[i]);
+let busy=false;
+async function request(path, body) {
+  const r=await fetch(path,body?{method:'POST',body,cache:'no-store'}:{cache:'no-store'});
+  if(!r.ok)throw Error(r.status);
+  return r.json();
+}
+function render(state, restore) {
+  $('wallpapers').replaceChildren(...state.wallpapers.map(w=>{
+    const b=document.createElement('button'), image=document.createElement('img'), name=document.createElement('span');
+    b.className='card'; b.dataset.id=w.id;
+    b.setAttribute('aria-pressed',String(w.id===state.selected));
+    image.loading='lazy';image.alt='';image.src='thumb/'+encodeURIComponent(w.id);
+    name.textContent=w.title;
+    if(w.id===state.selected)name.textContent+=' · '+copy[7];
+    b.append(image,name);
+    b.onclick=()=>run(async()=>{render(await request('api/wallpaper',new URLSearchParams({id:w.id})),w.id);$('status').textContent=copy[4];});
+    return b;
+  }));
+  if(restore)Array.from($('wallpapers').children).find(b=>b.dataset.id===restore)?.focus();
+}
+async function run(work) {
+  if(busy)return;
+  busy=true;$('photo').disabled=true;
+  try{await work();}catch(_){$('status').textContent=copy[6];}
+  finally{busy=false;$('photo').disabled=false;}
+}
+const picker=$('photoPicker');
+$('photo').onclick=()=>picker.click();
+picker.onchange=()=>{
+  const file=picker.files[0];
+  picker.value='';
+  if(!file)return;
+  run(async()=>{
+    $('status').textContent=copy[3];
+    const form=new FormData();
+    form.append('photo',file);
+    const result=await request('api/upload',form);
+    if(!result.added)throw Error('upload');
+    render(result);
+    $('status').textContent=copy[5];
+  });
+};
+run(async()=>render(await request('api/state')));
+</script>
+</html>
